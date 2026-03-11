@@ -4,9 +4,9 @@ val logback_version: String by project
 val exposed_version: String by project
 
 plugins {
-    kotlin("jvm") version "2.3.0"          // ✅ Diupdate dari 2.1.0
-    id("io.ktor.plugin") version "3.4.0"    // ✅ Diupdate dari 3.0.3
-    kotlin("plugin.serialization") version "2.3.0"  // ✅ Diupdate dari 2.1.0
+    kotlin("jvm") version "2.3.0"
+    id("io.ktor.plugin") version "3.4.0"
+    kotlin("plugin.serialization") version "2.3.0"
 }
 
 group = "org.sonic"
@@ -18,12 +18,6 @@ application {
 
 kotlin {
     jvmToolchain(17)
-}
-
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
-    }
 }
 
 ktor {
@@ -45,7 +39,7 @@ dependencies {
     implementation("io.ktor:ktor-server-status-pages:$ktor_version")
     implementation("io.ktor:ktor-server-auth:$ktor_version")
     implementation("io.ktor:ktor-server-auth-jwt:$ktor_version")
-    implementation("ch.qos.logback:logback-classic:$logback_version")
+    implementation("ch.qos.logback:logback-classic:${logback_version}")
     implementation("org.postgresql:postgresql:42.7.3")
     implementation("org.jetbrains.exposed:exposed-core:$exposed_version")
     implementation("org.jetbrains.exposed:exposed-dao:$exposed_version")
