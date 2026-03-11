@@ -1,4 +1,4 @@
-rootProject.name = "pam-2026-proyek-ifs23024-be"
+rootProject.name = "sonic-backend"
 
 dependencyResolutionManagement {
     repositories {

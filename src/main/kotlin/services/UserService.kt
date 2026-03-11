@@ -1,214 +1,239 @@
-package org.delcom.services
+package org.sonic.services
 
-import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.util.cio.*
 import io.ktor.utils.io.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.delcom.data.AppException
-import org.delcom.data.AuthRequest
-import org.delcom.data.DataResponse
-import org.delcom.data.UserResponse
-import org.delcom.helpers.ServiceHelper
-import org.delcom.helpers.ValidatorHelper
-import org.delcom.helpers.hashPassword
-import org.delcom.helpers.verifyPassword
-import org.delcom.repositories.IRefreshTokenRepository
-import org.delcom.repositories.IUserRepository
+import org.sonic.data.*
+import org.sonic.helpers.*
+import org.sonic.repositories.IFollowRepository
+import org.sonic.repositories.IRefreshTokenRepository
+import org.sonic.repositories.IUserRepository
 import java.io.File
-import java.util.*
+import java.util.UUID
 
 class UserService(
     private val userRepo: IUserRepository,
+    private val followRepo: IFollowRepository,
     private val refreshTokenRepo: IRefreshTokenRepository,
 ) {
-    // Mengambil data user yang login saat ini
     suspend fun getMe(call: ApplicationCall) {
         val user = ServiceHelper.getAuthUser(call, userRepo)
-
-        val response = DataResponse(
-            "success",
-            "Berhasil mengambil informasi akun saya",
-            mapOf(
-                "user" to UserResponse(
-                    id = user.id,
-                    name = user.name,
-                    username = user.username,
-                    createdAt = user.createdAt,
-                    updatedAt = user.updatedAt,
-                ),
-            )
-        )
-        call.respond(response)
+        call.respond(DataResponse("success", "Data profil berhasil diambil",
+            mapOf("user" to UserResponse(
+                id = user.id, name = user.name, username = user.username, email = user.email,
+                bio = user.bio, urlPhoto = user.urlPhoto, urlHeaderPhoto = user.urlHeaderPhoto,
+                location = user.location, website = user.website, isVerified = user.isVerified,
+                followersCount = user.followersCount, followingCount = user.followingCount,
+                createdAt = user.createdAt, updatedAt = user.updatedAt
+            ))
+        ))
     }
 
-    // Mengubah data saya
+    suspend fun getUserProfile(call: ApplicationCall) {
+        val username = call.parameters["username"] ?: throw AppException(400, "Username tidak valid!")
+        val authUserId = try { ServiceHelper.getAuthUserId(call) } catch (e: Exception) { null }
+        val user = userRepo.getByUsername(username) ?: throw AppException(404, "Pengguna tidak ditemukan!")
+        val isFollowing = authUserId?.let { followRepo.isFollowing(it, user.id) } ?: false
+
+        call.respond(DataResponse("success", "Profil berhasil diambil",
+            mapOf("user" to UserResponse(
+                id = user.id, name = user.name, username = user.username, email = user.email,
+                bio = user.bio, urlPhoto = user.urlPhoto, urlHeaderPhoto = user.urlHeaderPhoto,
+                location = user.location, website = user.website, isVerified = user.isVerified,
+                followersCount = user.followersCount, followingCount = user.followingCount,
+                isFollowing = isFollowing, createdAt = user.createdAt, updatedAt = user.updatedAt
+            ))
+        ))
+    }
+
     suspend fun putMe(call: ApplicationCall) {
         val user = ServiceHelper.getAuthUser(call, userRepo)
-
-        // Ambil data request
         val request = call.receive<AuthRequest>()
-
-        // Validasi request
         val validator = ValidatorHelper(request.toMap())
         validator.required("name", "Nama tidak boleh kosong")
         validator.required("username", "Username tidak boleh kosong")
         validator.validate()
 
-        // periksa user dengan username
         val existUser = userRepo.getByUsername(request.username)
-        if (existUser != null && existUser.username != user.username) {
-            throw AppException(
-                409,
-                "Akun dengan username ini sudah terdaftar!"
-            )
-        }
+        if (existUser != null && existUser.id != user.id)
+            throw AppException(409, "Username sudah digunakan!")
 
-        user.username = request.username
         user.name = request.name
-        val isUpdated = userRepo.update(
-            user.id,
-            user
-        )
-        if (!isUpdated) {
-            throw AppException(400, "Gagal memperbarui data profile!")
-        }
-
-        val response = DataResponse(
-            "success",
-            "Berhasil mengubah data profile",
-            null
-        )
-        call.respond(response)
+        user.username = request.username
+        if (!userRepo.update(user.id, user)) throw AppException(400, "Gagal memperbarui profil!")
+        call.respond(DataResponse("success", "Profil berhasil diperbarui", null))
     }
 
-    // mengubah photo profile
+    suspend fun putMyProfile(call: ApplicationCall) {
+        val user = ServiceHelper.getAuthUser(call, userRepo)
+        val request = call.receive<Map<String, String>>()
+        request["bio"]?.let { user.bio = it.ifBlank { null } }
+        request["location"]?.let { user.location = it.ifBlank { null } }
+        request["website"]?.let { user.website = it.ifBlank { null } }
+        request["name"]?.let { if (it.isNotBlank()) user.name = it }
+        userRepo.update(user.id, user)
+        call.respond(DataResponse("success", "Profil berhasil diperbarui", null))
+    }
+
     suspend fun putMyPhoto(call: ApplicationCall) {
         val user = ServiceHelper.getAuthUser(call, userRepo)
-
         var newPhoto: String? = null
-        val multipartData = call.receiveMultipart(formFieldLimit = 1024 * 1024 * 5)
-        multipartData.forEachPart { part ->
-            when (part) {
-                // Upload file
-                is PartData.FileItem -> {
-                    val ext = part.originalFileName
-                        ?.substringAfterLast('.', "")
-                        ?.let { if (it.isNotEmpty()) ".$it" else "" }
-                        ?: ""
 
-                    val fileName = UUID.randomUUID().toString() + ext
-                    val filePath = "uploads/users/$fileName"
-
-                    val file = File(filePath)
-                    file.parentFile.mkdirs() // pastikan folder ada
-
+        call.receiveMultipart(formFieldLimit = 1024 * 1024 * 5).forEachPart { part ->
+            if (part is PartData.FileItem) {
+                val ext = part.originalFileName?.substringAfterLast('.', "")
+                    ?.let { if (it.isNotEmpty()) ".$it" else "" } ?: ""
+                val filePath = "uploads/users/${UUID.randomUUID()}$ext"
+                File(filePath).also { it.parentFile.mkdirs() }.let { file ->
                     part.provider().copyAndClose(file.writeChannel())
-                    newPhoto = filePath
                 }
-
-                else -> {}
+                newPhoto = filePath
             }
-
             part.dispose()
         }
 
-        if(newPhoto == null){
-            throw AppException(404, "Photo profile tidak tersedia!")
-        }
-
-        val newFile = File(newPhoto)
-        // Cek apakah gambar berhasil diunggah
-        if (!newFile.exists()) {
-            throw AppException(404, "Photo profile gagal diunggah!")
-        }
+        val path = newPhoto ?: throw AppException(400, "Foto tidak tersedia!")
+        if (!File(path).exists()) throw AppException(400, "Foto gagal diunggah!")
 
         val oldPhoto = user.photo
-        user.photo = newPhoto
-
-        val isUpdated = userRepo.update(
-            user.id,
-            user
-        )
-        if (!isUpdated) {
-            throw AppException(400, "Gagal memperbarui photo profile!")
-        }
-
-        // Hapus photo profile lama
-        if(oldPhoto != null){
-            val oldFile = File(oldPhoto)
-            if(oldFile.exists()){
-                oldFile.delete()
-            }
-        }
-
-        val response = DataResponse(
-            "success",
-            "Berhasil mengubah photo profile",
-            null
-        )
-        call.respond(response)
+        user.photo = path
+        if (!userRepo.update(user.id, user)) throw AppException(400, "Gagal memperbarui foto!")
+        oldPhoto?.let { File(it).takeIf { f -> f.exists() }?.delete() }
+        call.respond(DataResponse("success", "Foto profil berhasil diperbarui", null))
     }
 
-    // Mengubah data saya
+    suspend fun putMyHeaderPhoto(call: ApplicationCall) {
+        val user = ServiceHelper.getAuthUser(call, userRepo)
+        var newPhoto: String? = null
+
+        call.receiveMultipart(formFieldLimit = 1024 * 1024 * 10).forEachPart { part ->
+            if (part is PartData.FileItem) {
+                val ext = part.originalFileName?.substringAfterLast('.', "")
+                    ?.let { if (it.isNotEmpty()) ".$it" else "" } ?: ""
+                val filePath = "uploads/users/header_${UUID.randomUUID()}$ext"
+                File(filePath).also { it.parentFile.mkdirs() }.let { file ->
+                    part.provider().copyAndClose(file.writeChannel())
+                }
+                newPhoto = filePath
+            }
+            part.dispose()
+        }
+
+        val path = newPhoto ?: throw AppException(400, "Header foto tidak tersedia!")
+        val oldHeader = user.headerPhoto
+        user.headerPhoto = path
+        userRepo.update(user.id, user)
+        oldHeader?.let { File(it).takeIf { f -> f.exists() }?.delete() }
+        call.respond(DataResponse("success", "Header foto berhasil diperbarui", null))
+    }
+
     suspend fun putMyPassword(call: ApplicationCall) {
         val user = ServiceHelper.getAuthUser(call, userRepo)
-
-        // Ambil data request
         val request = call.receive<AuthRequest>()
-
-        // Validasi request
         val validator = ValidatorHelper(request.toMap())
-        validator.required("newPassword", "Kata sandi baru tidak boleh kosong")
         validator.required("password", "Kata sandi lama tidak boleh kosong")
+        validator.required("newPassword", "Kata sandi baru tidak boleh kosong")
         validator.validate()
 
-        val validPassword = verifyPassword(request.password, user.password)
-        if (!validPassword) {
-            throw AppException(404, "Kata sandi lama tidak valid!")
-        }
+        if (!verifyPassword(request.password, user.password))
+            throw AppException(401, "Kata sandi lama tidak valid!")
 
-        // buat password baru
         user.password = hashPassword(request.newPassword)
-        val isUpdated = userRepo.update(
-            user.id,
-            user
-        )
-        if (!isUpdated) {
-            throw AppException(400, "Gagal mengubah kata sandi!")
-        }
-
-        // Hapus semua token
+        if (!userRepo.update(user.id, user)) throw AppException(400, "Gagal mengubah kata sandi!")
         refreshTokenRepo.deleteByUserId(user.id)
-
-        val response = DataResponse(
-            "success",
-            "Berhasil mengubah kata sandi",
-            null
-        )
-        call.respond(response)
+        call.respond(DataResponse("success", "Kata sandi berhasil diubah", null))
     }
 
-    // Mengambil photo
+    suspend fun follow(call: ApplicationCall) {
+        val targetUserId = call.parameters["userId"] ?: throw AppException(400, "User ID tidak valid!")
+        val user = ServiceHelper.getAuthUser(call, userRepo)
+        if (user.id == targetUserId) throw AppException(400, "Tidak bisa mengikuti diri sendiri!")
+        userRepo.getById(targetUserId) ?: throw AppException(404, "Pengguna tidak ditemukan!")
+        if (followRepo.isFollowing(user.id, targetUserId)) throw AppException(409, "Sudah mengikuti!")
+
+        followRepo.follow(user.id, targetUserId)
+        userRepo.incrementFollowing(user.id)
+        userRepo.incrementFollowers(targetUserId)
+        call.respond(DataResponse("success", "Berhasil mengikuti pengguna", null))
+    }
+
+    suspend fun unfollow(call: ApplicationCall) {
+        val targetUserId = call.parameters["userId"] ?: throw AppException(400, "User ID tidak valid!")
+        val user = ServiceHelper.getAuthUser(call, userRepo)
+        if (!followRepo.isFollowing(user.id, targetUserId)) throw AppException(400, "Belum mengikuti!")
+
+        followRepo.unfollow(user.id, targetUserId)
+        userRepo.decrementFollowing(user.id)
+        userRepo.decrementFollowers(targetUserId)
+        call.respond(DataResponse("success", "Berhenti mengikuti", null))
+    }
+
+    suspend fun getFollowers(call: ApplicationCall) {
+        val userId = call.parameters["userId"] ?: throw AppException(400, "User ID tidak valid!")
+        val page = call.request.queryParameters["page"]?.toIntOrNull() ?: 1
+        val limit = (call.request.queryParameters["limit"]?.toIntOrNull() ?: 20).coerceAtMost(50)
+        val authUserId = try { ServiceHelper.getAuthUserId(call) } catch (e: Exception) { null }
+
+        val followers = followRepo.getFollowers(userId, page, limit)
+            .mapNotNull { userRepo.getById(it) }
+            .map { u -> UserResponse(
+                id = u.id, name = u.name, username = u.username, email = u.email,
+                urlPhoto = u.urlPhoto, isVerified = u.isVerified,
+                followersCount = u.followersCount, followingCount = u.followingCount,
+                isFollowing = authUserId?.let { followRepo.isFollowing(it, u.id) } ?: false,
+                createdAt = u.createdAt, updatedAt = u.updatedAt
+            )}
+        call.respond(DataResponse("success", "Daftar pengikut berhasil diambil",
+            mapOf("users" to followers, "page" to page, "limit" to limit)))
+    }
+
+    suspend fun getFollowing(call: ApplicationCall) {
+        val userId = call.parameters["userId"] ?: throw AppException(400, "User ID tidak valid!")
+        val page = call.request.queryParameters["page"]?.toIntOrNull() ?: 1
+        val limit = (call.request.queryParameters["limit"]?.toIntOrNull() ?: 20).coerceAtMost(50)
+        val authUserId = try { ServiceHelper.getAuthUserId(call) } catch (e: Exception) { null }
+
+        val following = followRepo.getFollowing(userId, page, limit)
+            .mapNotNull { userRepo.getById(it) }
+            .map { u -> UserResponse(
+                id = u.id, name = u.name, username = u.username, email = u.email,
+                urlPhoto = u.urlPhoto, isVerified = u.isVerified,
+                followersCount = u.followersCount, followingCount = u.followingCount,
+                isFollowing = authUserId?.let { followRepo.isFollowing(it, u.id) } ?: false,
+                createdAt = u.createdAt, updatedAt = u.updatedAt
+            )}
+        call.respond(DataResponse("success", "Daftar yang diikuti berhasil diambil",
+            mapOf("users" to following, "page" to page, "limit" to limit)))
+    }
+
+    suspend fun searchUsers(call: ApplicationCall) {
+        val query = call.request.queryParameters["q"] ?: throw AppException(400, "Query tidak boleh kosong!")
+        val page = call.request.queryParameters["page"]?.toIntOrNull() ?: 1
+        val limit = (call.request.queryParameters["limit"]?.toIntOrNull() ?: 20).coerceAtMost(50)
+        val authUserId = try { ServiceHelper.getAuthUserId(call) } catch (e: Exception) { null }
+
+        val users = userRepo.search(query, page, limit).map { u ->
+            UserResponse(
+                id = u.id, name = u.name, username = u.username, email = u.email,
+                bio = u.bio, urlPhoto = u.urlPhoto, isVerified = u.isVerified,
+                followersCount = u.followersCount, followingCount = u.followingCount,
+                isFollowing = authUserId?.let { followRepo.isFollowing(it, u.id) } ?: false,
+                createdAt = u.createdAt, updatedAt = u.updatedAt
+            )
+        }
+        call.respond(DataResponse("success", "Hasil pencarian pengguna",
+            mapOf("users" to users, "query" to query, "page" to page, "limit" to limit)))
+    }
+
     suspend fun getPhoto(call: ApplicationCall) {
-        val userId = call.parameters["id"]
-            ?: throw AppException(400, "Data todo tidak valid!")
-
-        val user = userRepo.getById(userId) ?: throw AppException(400, "User not found!")
-
-        if(user.photo == null){
-            throw AppException(404, "User belum memiliki photo profile")
-        }
-
-        val file = File(user.photo!!)
-        if (!file.exists()) {
-            throw AppException(404, "Photo profile tidak tersedia")
-        }
-
+        val userId = call.parameters["id"] ?: throw AppException(400, "User ID tidak valid!")
+        val user = userRepo.getById(userId) ?: throw AppException(404, "Pengguna tidak ditemukan!")
+        val path = user.photo ?: throw AppException(404, "Belum memiliki foto profil!")
+        val file = File(path)
+        if (!file.exists()) throw AppException(404, "Foto tidak tersedia!")
         call.respondFile(file)
     }
 }

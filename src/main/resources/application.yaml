@@ -1,20 +1,20 @@
 ktor:
   application:
     modules:
-      - org.delcom.ApplicationKt.module
+      - org.sonic.ApplicationKt.module
   deployment:
-    port: ${APP_PORT}
-    host: ${APP_HOST}
+    port: 8080
+    host: "0.0.0.0"
 
   database:
-    host: ${DB_HOST}
-    port: ${DB_PORT}
-    name: ${DB_NAME}
-    user: ${DB_USER}
-    password: ${DB_PASSWORD}
+    host: ${DB_HOST:127.0.0.1}
+    port: ${DB_PORT:5432}
+    name: ${DB_NAME:db_sonic}
+    user: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
 
   jwt:
-    secret: "${JWT_SECRET}"
+    secret: ${JWT_SECRET:VrrQISTjQiDFsQ2MF794w4cFaQo2daqzGLuMpA+eWng=}
 
   app:
-    baseUrl: ${APP_URL}
+    baseUrl: ${APP_URL:"http://localhost:8080"}

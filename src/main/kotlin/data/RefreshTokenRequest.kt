@@ -1,27 +1,14 @@
-package org.delcom.data
+package org.sonic.data
 
 import kotlinx.serialization.Serializable
-import org.delcom.entities.RefreshToken
+import org.sonic.entities.RefreshToken
 
 @Serializable
 data class RefreshTokenRequest(
     var userId: String = "",
     var refreshToken: String = "",
     var authToken: String = "",
-){
-    fun toMap(): Map<String, Any?> {
-        return mapOf(
-            "refreshToken" to refreshToken,
-            "authToken" to authToken,
-        )
-    }
-
-    fun toEntity(): RefreshToken {
-        return RefreshToken(
-            userId = userId,
-            refreshToken = refreshToken,
-            authToken = authToken,
-        )
-    }
-
+) {
+    fun toMap() = mapOf("refreshToken" to refreshToken, "authToken" to authToken)
+    fun toEntity() = RefreshToken(userId = userId, refreshToken = refreshToken, authToken = authToken)
 }

@@ -1,26 +1,25 @@
-package org.delcom.helpers
+package org.sonic.helpers
 
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
-import org.delcom.data.AppException
-import org.delcom.entities.User
-import org.delcom.repositories.IUserRepository
+import org.sonic.data.AppException
+import org.sonic.entities.User
+import org.sonic.repositories.IUserRepository
 
 object ServiceHelper {
     suspend fun getAuthUser(call: ApplicationCall, userRepository: IUserRepository): User {
         val principal = call.principal<JWTPrincipal>()
             ?: throw AppException(401, "Unauthorized")
-
-        val userId = principal
-            .payload
-            .getClaim("userId")
-            .asString()
+        val userId = principal.payload.getClaim("userId").asString()
             ?: throw AppException(401, "Token tidak valid")
+        return userRepository.getById(userId) ?: throw AppException(401, "User tidak valid")
+    }
 
-        val user = userRepository.getById(userId)
-            ?: throw AppException(401, "User tidak valid")
-
-        return user
+    fun getAuthUserId(call: ApplicationCall): String {
+        val principal = call.principal<JWTPrincipal>()
+            ?: throw AppException(401, "Unauthorized")
+        return principal.payload.getClaim("userId").asString()
+            ?: throw AppException(401, "Token tidak valid")
     }
 }

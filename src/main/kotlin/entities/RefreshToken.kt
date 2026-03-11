@@ -1,4 +1,4 @@
-package org.delcom.entities
+package org.sonic.entities
 
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
@@ -8,11 +8,9 @@ import java.util.UUID
 
 @Serializable
 data class RefreshToken(
-    var id : String = UUID.randomUUID().toString(),
-    var userId : String,
+    var id: String = UUID.randomUUID().toString(),
+    var userId: String,
     var refreshToken: String,
     var authToken: String,
-
-    @Contextual
-    val createdAt: Instant = Clock.System.now(),
+    @Contextual val createdAt: Instant = Clock.System.now(),
 )

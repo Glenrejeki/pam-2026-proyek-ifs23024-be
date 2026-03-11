@@ -1,4 +1,4 @@
-package org.delcom.data
+package org.sonic.data
 
 import kotlinx.serialization.Serializable
 
