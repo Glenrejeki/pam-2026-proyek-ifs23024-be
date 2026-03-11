@@ -1,6 +1,6 @@
 ## Global Variabel
-#@BaseUrl = https://pam-2026-p5-ifs18005-be.delcom.org:8080
-@BaseUrl = http://127.0.0.1:8000
+#@BaseUrl = https://pam-2026-proyek1-ifs23024-be.fluxy.sbs
+@BaseUrl = http://127.0.0.1:8080
 
 ### ---------------------------------------
 ## Auth
@@ -14,7 +14,8 @@ Content-Type: application/json
 {
   "name": "Tester",
   "username": "tester",
-  "password": "tester"
+  "email": "tester@email.com",
+  "password": "tester123"
 }
 
 ### Masuk ke layanan
@@ -23,8 +24,8 @@ POST {{BaseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "username": "tester",
-  "password": "tester"
+  "email": "tester@email.com",
+  "password": "tester123"
 }
 
 > {%
@@ -32,7 +33,7 @@ Content-Type: application/json
     client.global.set("refreshToken", response.body.data.refreshToken);
 %}
 
-### Masuk ke layanan
+### Refresh token
 # @name PostRefreshToken
 POST {{BaseUrl}}/auth/refresh-token
 Content-Type: application/json
@@ -47,7 +48,7 @@ Content-Type: application/json
     client.global.set("refreshToken", response.body.data.refreshToken);
 %}
 
-### Keluar dari layanan (skip run)
+### Keluar dari layanan
 # @name PostLogout
 POST {{BaseUrl}}/auth/logout
 Content-Type: application/json
@@ -60,7 +61,7 @@ Content-Type: application/json
 ## Users
 ### ---------------------------------------
 
-### Mengambil informasi akun
+### Mengambil informasi akun saya
 # @name GetUserMe
 GET {{BaseUrl}}/users/me
 Authorization: Bearer {{authToken}}
@@ -81,18 +82,30 @@ Content-Type: application/json
   "username": "tester"
 }
 
-### Mengubah kata sandi akun
+### Mengubah bio/lokasi/website
+# @name PutUserMeProfile
+PUT {{BaseUrl}}/users/me/profile
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "bio": "Ini bio saya",
+  "location": "Medan, Indonesia",
+  "website": "https://example.com"
+}
+
+### Mengubah kata sandi
 # @name PutUserMePassword
 PUT {{BaseUrl}}/users/me/password
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
 {
-  "newPassword": "tester",
-  "password": "tester"
+  "password": "tester123",
+  "newPassword": "tester123"
 }
 
-### Mengubah photo profile
+### Mengubah foto profil
 # @name PutUserMePhoto
 PUT {{BaseUrl}}/users/me/photo
 Authorization: Bearer {{authToken}}
@@ -105,60 +118,9 @@ Content-Type: image/png
 < ./uploads/examples/me.png
 --WebAppBoundary--
 
-### Mengambil data tumbuhan berdasarkan id-nya
-@userId = 00ed9d33-61b0-48b7-a32a-6510af028731
-
-# @name GetMyPhoto
-GET {{BaseUrl}}/images/users/{{userId}}
-Authorization: Bearer {{authToken}}
-Content-Type: application/json
-
-### ---------------------------------------
-## Todos
-### ---------------------------------------
-
-### Mengambil semua data todo user saat ini
-# @name GetTodos
-GET {{BaseUrl}}/todos?search=
-Authorization: Bearer {{authToken}}
-Content-Type: application/json
-
-### Menambahkan todo
-# @name PostTodos
-POST {{BaseUrl}}/todos
-Authorization: Bearer {{authToken}}
-Content-Type: application/json
-
-{
-  "title": "Judul Todo",
-  "description": "Deskripsi Todo"
-}
-
-> {%
-    client.global.set("todoId", response.body.data.todoId);
-%}
-
-### Mengambil todo dengan id
-# @name GetTodoById
-GET {{BaseUrl}}/todos/{{todoId}}
-Authorization: Bearer {{authToken}}
-Content-Type: application/json
-
-### Mengubah todo
-# @name PutTodo
-PUT {{BaseUrl}}/todos/{{todoId}}
-Authorization: Bearer {{authToken}}
-Content-Type: application/json
-
-{
-  "title": "Judul Todo",
-  "description": "Deskripsi Todo",
-  "isDone": true
-}
-
-### Mengubah cover todo
-# @name PutTodoCover
-PUT {{BaseUrl}}/todos/{{todoId}}/cover
+### Mengubah header foto
+# @name PutUserMeHeader
+PUT {{BaseUrl}}/users/me/header
 Authorization: Bearer {{authToken}}
 Content-Type: multipart/form-data; boundary=WebAppBoundary
 
@@ -169,14 +131,190 @@ Content-Type: image/png
 < ./uploads/examples/me.png
 --WebAppBoundary--
 
-### Mengambil cover todo
-# @name GetTodoCover
-GET {{BaseUrl}}/images/todos/{{todoId}}
+### Mengambil foto profil user
+@userId = 00000000-0000-0000-0000-000000000000
+
+# @name GetUserPhoto
+GET {{BaseUrl}}/images/users/{{userId}}
+Content-Type: application/json
+
+### Mengambil profil user berdasarkan username
+# @name GetUserProfile
+GET {{BaseUrl}}/users/tester
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
-### Menghapus todo
-# @name DeleteTodo
-DELETE {{BaseUrl}}/todos/{{todoId}}
+### Follow user
+# @name FollowUser
+POST {{BaseUrl}}/users/{{userId}}/follow
 Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+### Unfollow user
+# @name UnfollowUser
+DELETE {{BaseUrl}}/users/{{userId}}/follow
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+### Mengambil daftar followers
+# @name GetFollowers
+GET {{BaseUrl}}/users/{{userId}}/followers
+Content-Type: application/json
+
+### Mengambil daftar following
+# @name GetFollowing
+GET {{BaseUrl}}/users/{{userId}}/following
+Content-Type: application/json
+
+### Mengambil tweets user
+# @name GetUserTweets
+GET {{BaseUrl}}/users/{{userId}}/tweets
+Content-Type: application/json
+
+### ---------------------------------------
+## Tweets
+### ---------------------------------------
+
+### Mengambil timeline
+# @name GetTimeline
+GET {{BaseUrl}}/tweets?page=1&limit=20&filter=all
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+### Membuat tweet
+# @name PostTweet
+POST {{BaseUrl}}/tweets
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "content": "Hello Sonic! #sonic #ktor"
+}
+
+> {%
+    client.global.set("tweetId", response.body.data.tweetId);
+%}
+
+### Membuat tweet dengan gambar
+# @name PostTweetWithImage
+POST {{BaseUrl}}/tweets/media
+Authorization: Bearer {{authToken}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="content"
+
+Tweet dengan gambar #sonic
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="example.png"
+Content-Type: image/png
+
+< ./uploads/examples/me.png
+--WebAppBoundary--
+
+### Retweet
+# @name PostRetweet
+POST {{BaseUrl}}/tweets
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "content": "",
+  "retweetOfId": "{{tweetId}}"
+}
+
+### Quote tweet
+# @name PostQuoteTweet
+POST {{BaseUrl}}/tweets
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "content": "Quote tweet ini #sonic",
+  "quoteOfId": "{{tweetId}}"
+}
+
+### Reply tweet
+# @name PostReplyTweet
+POST {{BaseUrl}}/tweets
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "content": "Ini reply tweet #sonic",
+  "replyToId": "{{tweetId}}"
+}
+
+### Mengambil tweet berdasarkan id
+@tweetId = 00000000-0000-0000-0000-000000000000
+
+# @name GetTweetById
+GET {{BaseUrl}}/tweets/{{tweetId}}
+Content-Type: application/json
+
+### Mengubah tweet
+# @name PutTweet
+PUT {{BaseUrl}}/tweets/{{tweetId}}
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "content": "Tweet diubah #sonic"
+}
+
+### Menghapus tweet
+# @name DeleteTweet
+DELETE {{BaseUrl}}/tweets/{{tweetId}}
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+### Like / Unlike tweet
+# @name LikeTweet
+POST {{BaseUrl}}/tweets/{{tweetId}}/like
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+### Bookmark / Unbookmark tweet
+# @name BookmarkTweet
+POST {{BaseUrl}}/tweets/{{tweetId}}/bookmark
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+### Mengambil gambar tweet
+# @name GetTweetImage
+GET {{BaseUrl}}/images/tweets/{{tweetId}}
+Content-Type: application/json
+
+### ---------------------------------------
+## Bookmarks
+### ---------------------------------------
+
+### Mengambil daftar bookmark
+# @name GetBookmarks
+GET {{BaseUrl}}/bookmarks?page=1&limit=20
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+### ---------------------------------------
+## Search
+### ---------------------------------------
+
+### Mencari tweet
+# @name SearchTweets
+GET {{BaseUrl}}/search/tweets?q=sonic&page=1&limit=20
+Content-Type: application/json
+
+### Mencari tweet berdasarkan hashtag
+# @name SearchTweetsByHashtag
+GET {{BaseUrl}}/search/tweets?q=%23sonic&page=1&limit=20
+Content-Type: application/json
+
+### Mencari user
+# @name SearchUsers
+GET {{BaseUrl}}/search/users?q=tester&page=1&limit=20
+Content-Type: application/json
+
+### Trending hashtag
+# @name GetTrending
+GET {{BaseUrl}}/search/trending?limit=10
 Content-Type: application/json
