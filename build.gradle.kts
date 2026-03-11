@@ -16,10 +16,6 @@ application {
     mainClass = "org.sonic.ApplicationKt"
 }
 
-kotlin {
-    jvmToolchain(17)
-}
-
 ktor {
     fatJar {
         archiveFileName.set("sonic-backend.jar")
@@ -39,7 +35,7 @@ dependencies {
     implementation("io.ktor:ktor-server-status-pages:$ktor_version")
     implementation("io.ktor:ktor-server-auth:$ktor_version")
     implementation("io.ktor:ktor-server-auth-jwt:$ktor_version")
-    implementation("ch.qos.logback:logback-classic:${logback_version}")
+    implementation("ch.qos.logback:logback-classic:$logback_version")
     implementation("org.postgresql:postgresql:42.7.3")
     implementation("org.jetbrains.exposed:exposed-core:$exposed_version")
     implementation("org.jetbrains.exposed:exposed-dao:$exposed_version")
