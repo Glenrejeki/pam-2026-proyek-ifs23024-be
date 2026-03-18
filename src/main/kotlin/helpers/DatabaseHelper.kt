@@ -13,16 +13,19 @@ fun Application.configureDatabases() {
     val dbUser = environment.config.property("ktor.database.user").getString()
     val dbPassword = environment.config.property("ktor.database.password").getString()
 
-    Database.connect(
-        url = "jdbc:postgresql://$dbHost:$dbPort/$dbName",
-        user = dbUser,
-        password = dbPassword
-    )
+    val url = "jdbc:postgresql://$dbHost:$dbPort/$dbName"
+    log.info("Connecting to database: $url as user: $dbUser")
 
-    transaction {
-        SchemaUtils.createMissingTablesAndColumns(
-            UserTable, TweetTable, LikeTable, BookmarkTable,
-            FollowTable, HashtagTable, TweetHashtagTable, RefreshTokenTable,
-        )
+    try {
+        Database.connect(url = url, user = dbUser, password = dbPassword)
+        transaction {
+            SchemaUtils.createMissingTablesAndColumns(
+                UserTable, TweetTable, LikeTable, BookmarkTable,
+                FollowTable, HashtagTable, TweetHashtagTable, RefreshTokenTable,
+            )
+        }
+        log.info("Database connected successfully!")
+    } catch (e: Exception) {
+        log.error("Database connection failed: ${e.message}")
     }
 }
