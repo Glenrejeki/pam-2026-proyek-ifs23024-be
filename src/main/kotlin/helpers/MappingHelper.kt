@@ -71,5 +71,5 @@ fun hashtagDAOToModel(dao: HashtagDAO) = Hashtag(
     id = dao.id.value.toString(),
     tag = dao.tag,
     count = dao.count,
-    updatedAt = dao.updatedAt,
+    updatedAt = dao.updatedAt.toString(), // convert Instant → String
 )
