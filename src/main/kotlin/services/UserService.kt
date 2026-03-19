@@ -22,7 +22,7 @@ class UserService(
     suspend fun getMe(call: ApplicationCall) {
         val user = ServiceHelper.getAuthUser(call, userRepo)
         call.respond(DataResponse("success", "Data profil berhasil diambil",
-            mapOf("user" to UserResponse(
+            UserData(UserResponse(
                 id = user.id, name = user.name, username = user.username, email = user.email,
                 bio = user.bio, urlPhoto = user.urlPhoto, urlHeaderPhoto = user.urlHeaderPhoto,
                 location = user.location, website = user.website, isVerified = user.isVerified,
@@ -39,7 +39,7 @@ class UserService(
         val isFollowing = authUserId?.let { followRepo.isFollowing(it, user.id) } ?: false
 
         call.respond(DataResponse("success", "Profil berhasil diambil",
-            mapOf("user" to UserResponse(
+            UserData(UserResponse(
                 id = user.id, name = user.name, username = user.username, email = user.email,
                 bio = user.bio, urlPhoto = user.urlPhoto, urlHeaderPhoto = user.urlHeaderPhoto,
                 location = user.location, website = user.website, isVerified = user.isVerified,
@@ -187,7 +187,7 @@ class UserService(
                 createdAt = u.createdAt, updatedAt = u.updatedAt
             )}
         call.respond(DataResponse("success", "Daftar pengikut berhasil diambil",
-            mapOf("users" to followers, "page" to page, "limit" to limit)))
+            UsersData(followers, page, limit)))
     }
 
     suspend fun getFollowing(call: ApplicationCall) {
@@ -206,7 +206,7 @@ class UserService(
                 createdAt = u.createdAt, updatedAt = u.updatedAt
             )}
         call.respond(DataResponse("success", "Daftar yang diikuti berhasil diambil",
-            mapOf("users" to following, "page" to page, "limit" to limit)))
+            UsersData(following, page, limit)))
     }
 
     suspend fun searchUsers(call: ApplicationCall) {
@@ -225,7 +225,7 @@ class UserService(
             )
         }
         call.respond(DataResponse("success", "Hasil pencarian pengguna",
-            mapOf("users" to users, "query" to query, "page" to page, "limit" to limit)))
+            SearchUsersData(users, query, page, limit)))
     }
 
     suspend fun getPhoto(call: ApplicationCall) {

@@ -15,6 +15,7 @@ import io.ktor.server.response.*
 import kotlinx.serialization.json.Json
 import org.koin.ktor.plugin.Koin
 import org.koin.logger.slf4jLogger
+import org.sonic.data.ErrorResponse
 import org.sonic.helpers.JWTConstants
 import org.sonic.helpers.configureDatabases
 import org.sonic.helpers.configureStaticFiles
@@ -47,7 +48,11 @@ fun Application.module() {
             challenge { _, _ ->
                 call.respond(
                     HttpStatusCode.Unauthorized,
-                    mapOf("status" to "error", "message" to "Token tidak valid atau sudah expired")
+                    ErrorResponse(
+                        status = "error",
+                        message = "Token tidak valid atau sudah expired",
+                        data = null
+                    )
                 )
             }
         }

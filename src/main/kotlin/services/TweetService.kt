@@ -57,7 +57,7 @@ class TweetService(
         val tweets = tweetRepo.getTimeline(user.id, ids, page, limit).map { enrichTweet(it, user.id) }
 
         call.respond(DataResponse("success", "Timeline berhasil diambil",
-            mapOf("tweets" to tweets, "page" to page, "limit" to limit)))
+            TimelineData(tweets, page, limit)))
     }
 
     suspend fun getUserTweets(call: ApplicationCall) {
@@ -67,7 +67,7 @@ class TweetService(
         val limit = (call.request.queryParameters["limit"]?.toIntOrNull() ?: 20).coerceAtMost(50)
         val tweets = tweetRepo.getByUserId(targetUserId, page, limit).map { enrichTweet(it, authUserId) }
         call.respond(DataResponse("success", "Tweet pengguna berhasil diambil",
-            mapOf("tweets" to tweets, "page" to page, "limit" to limit)))
+            TimelineData(tweets, page, limit)))
     }
 
     suspend fun getById(call: ApplicationCall) {
@@ -76,7 +76,7 @@ class TweetService(
         val tweet = tweetRepo.getById(tweetId) ?: throw AppException(404, "Tweet tidak ditemukan!")
         val replies = tweetRepo.getReplies(tweetId, 1, 20).map { enrichTweet(it, authUserId) }
         call.respond(DataResponse("success", "Tweet berhasil diambil",
-            mapOf("tweet" to enrichTweet(tweet, authUserId), "replies" to replies)))
+            TweetDetailData(enrichTweet(tweet, authUserId), replies)))
     }
 
     suspend fun post(call: ApplicationCall) {
@@ -100,7 +100,7 @@ class TweetService(
             hashtagRepo.upsertHashtags(hashtags)
             hashtagRepo.linkToTweet(tweetId, hashtags)
         }
-        call.respond(DataResponse("success", "Tweet berhasil diposting", mapOf("tweetId" to tweetId)))
+        call.respond(DataResponse("success", "Tweet berhasil diposting", TweetIdData(tweetId)))
     }
 
     suspend fun postWithImage(call: ApplicationCall) {
@@ -138,7 +138,7 @@ class TweetService(
             hashtagRepo.upsertHashtags(hashtags)
             hashtagRepo.linkToTweet(tweetId, hashtags)
         }
-        call.respond(DataResponse("success", "Tweet dengan gambar berhasil diposting", mapOf("tweetId" to tweetId)))
+        call.respond(DataResponse("success", "Tweet dengan gambar berhasil diposting", TweetIdData(tweetId)))
     }
 
     suspend fun put(call: ApplicationCall) {
@@ -189,11 +189,11 @@ class TweetService(
         if (likeRepo.isLiked(user.id, tweetId)) {
             likeRepo.unlike(user.id, tweetId)
             tweetRepo.decrementLikes(tweetId)
-            call.respond(DataResponse("success", "Tweet di-unlike", mapOf("liked" to false)))
+            call.respond(DataResponse("success", "Tweet di-unlike", TweetLikedData(false)))
         } else {
             likeRepo.like(user.id, tweetId)
             tweetRepo.incrementLikes(tweetId)
-            call.respond(DataResponse("success", "Tweet di-like", mapOf("liked" to true)))
+            call.respond(DataResponse("success", "Tweet di-like", TweetLikedData(true)))
         }
     }
 
@@ -204,10 +204,10 @@ class TweetService(
 
         if (bookmarkRepo.isBookmarked(user.id, tweetId)) {
             bookmarkRepo.removeBookmark(user.id, tweetId)
-            call.respond(DataResponse("success", "Markah dihapus", mapOf("bookmarked" to false)))
+            call.respond(DataResponse("success", "Markah dihapus", TweetBookmarkedData(false)))
         } else {
             bookmarkRepo.bookmark(user.id, tweetId)
-            call.respond(DataResponse("success", "Tweet ditandai", mapOf("bookmarked" to true)))
+            call.respond(DataResponse("success", "Tweet ditandai", TweetBookmarkedData(true)))
         }
     }
 
@@ -218,7 +218,7 @@ class TweetService(
         val tweetIds = bookmarkRepo.getBookmarkedTweetIdsList(user.id, page, limit)
         val tweets = tweetIds.mapNotNull { tweetRepo.getById(it) }.map { enrichTweet(it, user.id) }
         call.respond(DataResponse("success", "Markah berhasil diambil",
-            mapOf("tweets" to tweets, "page" to page, "limit" to limit)))
+            TimelineData(tweets, page, limit)))
     }
 
     suspend fun search(call: ApplicationCall) {
@@ -234,7 +234,7 @@ class TweetService(
         }.map { enrichTweet(it, authUserId) }
 
         call.respond(DataResponse("success", "Hasil pencarian",
-            mapOf("tweets" to tweets, "query" to query, "page" to page, "limit" to limit)))
+            SearchTweetsData(tweets, query, page, limit)))
     }
 
     suspend fun getTweetImage(call: ApplicationCall) {
