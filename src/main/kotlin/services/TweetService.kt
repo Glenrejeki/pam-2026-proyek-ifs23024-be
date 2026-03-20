@@ -38,11 +38,39 @@ class TweetService(
                 isBookmarked = bookmarkRepo.isBookmarked(authUserId, tweet.id),
             )
         }
+        // FIX: enrich author untuk nested retweetOf
         if (enriched.retweetOfId != null) {
-            tweetRepo.getById(enriched.retweetOfId!!)?.let { enriched = enriched.copy(retweetOf = it) }
+            tweetRepo.getById(enriched.retweetOfId!!)?.let { nested ->
+                val nestedAuthor = userRepo.getById(nested.userId)
+                enriched = enriched.copy(
+                    retweetOf = nested.copy(
+                        author = if (nestedAuthor != null) TweetAuthor(
+                            id = nestedAuthor.id,
+                            name = nestedAuthor.name,
+                            username = nestedAuthor.username,
+                            urlPhoto = nestedAuthor.urlPhoto,
+                            isVerified = nestedAuthor.isVerified
+                        ) else null
+                    )
+                )
+            }
         }
+        // FIX: enrich author untuk nested quoteOf
         if (enriched.quoteOfId != null) {
-            tweetRepo.getById(enriched.quoteOfId!!)?.let { enriched = enriched.copy(quoteOf = it) }
+            tweetRepo.getById(enriched.quoteOfId!!)?.let { nested ->
+                val nestedAuthor = userRepo.getById(nested.userId)
+                enriched = enriched.copy(
+                    quoteOf = nested.copy(
+                        author = if (nestedAuthor != null) TweetAuthor(
+                            id = nestedAuthor.id,
+                            name = nestedAuthor.name,
+                            username = nestedAuthor.username,
+                            urlPhoto = nestedAuthor.urlPhoto,
+                            isVerified = nestedAuthor.isVerified
+                        ) else null
+                    )
+                )
+            }
         }
         return enriched
     }
@@ -81,7 +109,6 @@ class TweetService(
     }
 
     suspend fun post(call: ApplicationCall) {
-        // Deteksi content type — jika multipart, delegasikan ke postWithImage
         if (call.request.contentType().match(ContentType.MultiPart.FormData)) {
             postWithImage(call)
             return
@@ -154,7 +181,6 @@ class TweetService(
         val tweetId = call.parameters["id"] ?: throw AppException(400, "Tweet ID tidak valid!")
         val user = ServiceHelper.getAuthUser(call, userRepo)
 
-        // Deteksi content type untuk edit juga
         if (call.request.contentType().match(ContentType.MultiPart.FormData)) {
             val request = TweetRequest(userId = user.id)
             var keepExistingImage = true
