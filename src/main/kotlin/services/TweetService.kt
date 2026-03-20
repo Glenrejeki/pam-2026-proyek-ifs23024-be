@@ -1,5 +1,6 @@
 package org.sonic.services
 
+import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
@@ -80,6 +81,12 @@ class TweetService(
     }
 
     suspend fun post(call: ApplicationCall) {
+        // Deteksi content type — jika multipart, delegasikan ke postWithImage
+        if (call.request.contentType().match(ContentType.MultiPart.FormData)) {
+            postWithImage(call)
+            return
+        }
+
         val user = ServiceHelper.getAuthUser(call, userRepo)
         val request = call.receive<TweetRequest>()
         request.userId = user.id
@@ -113,6 +120,7 @@ class TweetService(
                     "content" -> request.content = part.value
                     "replyToId" -> request.replyToId = part.value.ifBlank { null }
                     "quoteOfId" -> request.quoteOfId = part.value.ifBlank { null }
+                    "retweetOfId" -> request.retweetOfId = part.value.ifBlank { null }
                     "language" -> request.language = part.value.ifBlank { "id" }
                 }
                 is PartData.FileItem -> {
@@ -132,20 +140,64 @@ class TweetService(
         val tweetId = tweetRepo.create(request.toEntity())
         request.replyToId?.let { tweetRepo.incrementReplies(it) }
         request.quoteOfId?.let { tweetRepo.incrementQuotes(it) }
+        request.retweetOfId?.let { tweetRepo.incrementRetweets(it) }
 
         val hashtags = extractHashtags(request.content)
         if (hashtags.isNotEmpty()) {
             hashtagRepo.upsertHashtags(hashtags)
             hashtagRepo.linkToTweet(tweetId, hashtags)
         }
-        call.respond(DataResponse("success", "Tweet dengan gambar berhasil diposting", TweetIdData(tweetId)))
+        call.respond(DataResponse("success", "Tweet berhasil diposting", TweetIdData(tweetId)))
     }
 
     suspend fun put(call: ApplicationCall) {
         val tweetId = call.parameters["id"] ?: throw AppException(400, "Tweet ID tidak valid!")
         val user = ServiceHelper.getAuthUser(call, userRepo)
-        val request = call.receive<TweetRequest>()
 
+        // Deteksi content type untuk edit juga
+        if (call.request.contentType().match(ContentType.MultiPart.FormData)) {
+            val request = TweetRequest(userId = user.id)
+            var keepExistingImage = true
+
+            call.receiveMultipart(formFieldLimit = 1024 * 1024 * 10).forEachPart { part ->
+                when (part) {
+                    is PartData.FormItem -> when (part.name) {
+                        "content" -> request.content = part.value
+                        "language" -> request.language = part.value.ifBlank { "id" }
+                    }
+                    is PartData.FileItem -> {
+                        keepExistingImage = false
+                        val ext = part.originalFileName?.substringAfterLast('.', "")
+                            ?.let { if (it.isNotEmpty()) ".$it" else "" } ?: ""
+                        val filePath = "uploads/tweets/${UUID.randomUUID()}$ext"
+                        File(filePath).also { it.parentFile.mkdirs() }.let { file ->
+                            part.provider().copyAndClose(file.writeChannel())
+                        }
+                        request.imageUrl = filePath
+                    }
+                    else -> {}
+                }
+                part.dispose()
+            }
+
+            val oldTweet = tweetRepo.getById(tweetId) ?: throw AppException(404, "Tweet tidak ditemukan!")
+            if (oldTweet.userId != user.id) throw AppException(403, "Tidak berhak mengubah tweet ini!")
+
+            request.userId = user.id
+            val imageUrl = if (keepExistingImage) oldTweet.imageUrl else request.imageUrl
+            tweetRepo.update(user.id, tweetId, request.toEntity().copy(imageUrl = imageUrl))
+
+            hashtagRepo.unlinkFromTweet(tweetId)
+            val hashtags = extractHashtags(request.content)
+            if (hashtags.isNotEmpty()) {
+                hashtagRepo.upsertHashtags(hashtags)
+                hashtagRepo.linkToTweet(tweetId, hashtags)
+            }
+            call.respond(DataResponse("success", "Tweet berhasil diubah", null))
+            return
+        }
+
+        val request = call.receive<TweetRequest>()
         val validator = ValidatorHelper(request.toMap())
         validator.required("content", "Konten tweet tidak boleh kosong")
         validator.validate()
