@@ -38,7 +38,6 @@ class TweetService(
                 isBookmarked = bookmarkRepo.isBookmarked(authUserId, tweet.id),
             )
         }
-        // FIX: enrich author untuk nested retweetOf
         if (enriched.retweetOfId != null) {
             tweetRepo.getById(enriched.retweetOfId!!)?.let { nested ->
                 val nestedAuthor = userRepo.getById(nested.userId)
@@ -55,7 +54,6 @@ class TweetService(
                 )
             }
         }
-        // FIX: enrich author untuk nested quoteOf
         if (enriched.quoteOfId != null) {
             tweetRepo.getById(enriched.quoteOfId!!)?.let { nested ->
                 val nestedAuthor = userRepo.getById(nested.userId)
@@ -82,8 +80,13 @@ class TweetService(
         val filter = call.request.queryParameters["filter"] ?: "all"
 
         val followingIds = followRepo.getFollowingIds(user.id)
-        val ids = if (filter == "following") followingIds else followingIds
-        val tweets = tweetRepo.getTimeline(user.id, ids, page, limit).map { enrichTweet(it, user.id) }
+
+        // FIX: filter "all" → semua tweet, filter "following" → hanya following
+        val tweets = if (filter == "following") {
+            tweetRepo.getTimeline(user.id, followingIds, page, limit)
+        } else {
+            tweetRepo.getAllTweets(page, limit)
+        }.map { enrichTweet(it, user.id) }
 
         call.respond(DataResponse("success", "Timeline berhasil diambil",
             TimelineData(tweets, page, limit)))

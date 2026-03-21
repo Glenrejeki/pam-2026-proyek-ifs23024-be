@@ -15,14 +15,22 @@ class TweetRepository(private val baseUrl: String) : ITweetRepository {
         val allIds = (followingIds + userId).map { UUID.fromString(it) }
         TweetDAO.find { (TweetTable.userId inList allIds) and TweetTable.replyToId.isNull() }
             .orderBy(TweetTable.createdAt to SortOrder.DESC)
-            .limit(limit).offset(((page - 1) * limit).toLong())  // ✅ Fix
+            .limit(limit).offset(((page - 1) * limit).toLong())
+            .map { tweetDAOToModel(it, baseUrl) }
+    }
+
+    // TAMBAH: ambil semua tweet dari semua user untuk filter "all"
+    override suspend fun getAllTweets(page: Int, limit: Int): List<Tweet> = suspendTransaction {
+        TweetDAO.find { TweetTable.replyToId.isNull() }
+            .orderBy(TweetTable.createdAt to SortOrder.DESC)
+            .limit(limit).offset(((page - 1) * limit).toLong())
             .map { tweetDAOToModel(it, baseUrl) }
     }
 
     override suspend fun getByUserId(userId: String, page: Int, limit: Int): List<Tweet> = suspendTransaction {
         TweetDAO.find { TweetTable.userId eq UUID.fromString(userId) }
             .orderBy(TweetTable.createdAt to SortOrder.DESC)
-            .limit(limit).offset(((page - 1) * limit).toLong())  // ✅ Fix
+            .limit(limit).offset(((page - 1) * limit).toLong())
             .map { tweetDAOToModel(it, baseUrl) }
     }
 
@@ -34,7 +42,7 @@ class TweetRepository(private val baseUrl: String) : ITweetRepository {
     override suspend fun getReplies(tweetId: String, page: Int, limit: Int): List<Tweet> = suspendTransaction {
         TweetDAO.find { TweetTable.replyToId eq UUID.fromString(tweetId) }
             .orderBy(TweetTable.createdAt to SortOrder.ASC)
-            .limit(limit).offset(((page - 1) * limit).toLong())  // ✅ Fix
+            .limit(limit).offset(((page - 1) * limit).toLong())
             .map { tweetDAOToModel(it, baseUrl) }
     }
 
@@ -42,7 +50,7 @@ class TweetRepository(private val baseUrl: String) : ITweetRepository {
         val keyword = "%${query.lowercase()}%"
         TweetDAO.find { TweetTable.content.lowerCase() like keyword }
             .orderBy(TweetTable.createdAt to SortOrder.DESC)
-            .limit(limit).offset(((page - 1) * limit).toLong())  // ✅ Fix
+            .limit(limit).offset(((page - 1) * limit).toLong())
             .map { tweetDAOToModel(it, baseUrl) }
     }
 
@@ -50,18 +58,21 @@ class TweetRepository(private val baseUrl: String) : ITweetRepository {
         val keyword = "%#${tag.lowercase()}%"
         TweetDAO.find { TweetTable.content.lowerCase() like keyword }
             .orderBy(TweetTable.createdAt to SortOrder.DESC)
-            .limit(limit).offset(((page - 1) * limit).toLong())  // ✅ Fix
+            .limit(limit).offset(((page - 1) * limit).toLong())
             .map { tweetDAOToModel(it, baseUrl) }
     }
 
     override suspend fun create(tweet: Tweet): String = suspendTransaction {
         TweetDAO.new {
-            userId = UUID.fromString(tweet.userId); content = tweet.content
+            userId = UUID.fromString(tweet.userId)
+            content = tweet.content
             imageUrl = tweet.imageUrl
             retweetOfId = tweet.retweetOfId?.let { UUID.fromString(it) }
             quoteOfId = tweet.quoteOfId?.let { UUID.fromString(it) }
             replyToId = tweet.replyToId?.let { UUID.fromString(it) }
-            language = tweet.language; createdAt = tweet.createdAt; updatedAt = tweet.updatedAt
+            language = tweet.language
+            createdAt = tweet.createdAt
+            updatedAt = tweet.updatedAt
         }.id.value.toString()
     }
 
@@ -69,7 +80,9 @@ class TweetRepository(private val baseUrl: String) : ITweetRepository {
         val dao = TweetDAO.find {
             (TweetTable.id eq UUID.fromString(tweetId)) and (TweetTable.userId eq UUID.fromString(userId))
         }.limit(1).firstOrNull() ?: return@suspendTransaction false
-        dao.content = newTweet.content; dao.imageUrl = newTweet.imageUrl; dao.updatedAt = newTweet.updatedAt
+        dao.content = newTweet.content
+        dao.imageUrl = newTweet.imageUrl
+        dao.updatedAt = newTweet.updatedAt
         true
     }
 

@@ -4,6 +4,7 @@ import org.sonic.entities.Tweet
 
 interface ITweetRepository {
     suspend fun getTimeline(userId: String, followingIds: List<String>, page: Int, limit: Int): List<Tweet>
+    suspend fun getAllTweets(page: Int, limit: Int): List<Tweet>  // ← TAMBAH
     suspend fun getByUserId(userId: String, page: Int, limit: Int): List<Tweet>
     suspend fun getById(tweetId: String): Tweet?
     suspend fun getReplies(tweetId: String, page: Int, limit: Int): List<Tweet>
