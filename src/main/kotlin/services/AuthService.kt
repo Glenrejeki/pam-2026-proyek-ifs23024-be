@@ -33,7 +33,8 @@ class AuthService(
 
         request.password = hashPassword(request.password)
         val userId = userRepository.create(request.toEntity())
-        call.respond(DataResponse("success", "Berhasil mendaftar", mapOf("userId" to userId)))
+        call.respond(DataResponse("success", "Berhasil mendaftar",
+            AuthRegisterData(userId))) // ← FIX: ganti mapOf
     }
 
     suspend fun postLogin(call: ApplicationCall) {
@@ -56,7 +57,7 @@ class AuthService(
         )
 
         call.respond(DataResponse("success", "Berhasil login",
-            mapOf("authToken" to authToken, "refreshToken" to strRefreshToken)))
+            AuthTokenData(authToken, strRefreshToken))) // ← FIX: ganti mapOf
     }
 
     suspend fun postRefreshToken(call: ApplicationCall) {
@@ -70,7 +71,8 @@ class AuthService(
         refreshTokenRepository.delete(request.authToken)
         if (existToken == null) throw AppException(401, "Token tidak valid!")
 
-        val user = userRepository.getById(existToken.userId) ?: throw AppException(404, "User tidak valid!")
+        val user = userRepository.getById(existToken.userId)
+            ?: throw AppException(404, "User tidak valid!")
         val authToken = generateAuthToken(user.id, jwtSecret)
         val strRefreshToken = UUID.randomUUID().toString()
         refreshTokenRepository.create(
@@ -78,7 +80,7 @@ class AuthService(
         )
 
         call.respond(DataResponse("success", "Token berhasil diperbarui",
-            mapOf("authToken" to authToken, "refreshToken" to strRefreshToken)))
+            AuthTokenData(authToken, strRefreshToken))) // ← FIX: ganti mapOf
     }
 
     suspend fun postLogout(call: ApplicationCall) {
@@ -88,7 +90,8 @@ class AuthService(
         validator.validate()
 
         val decoded = JWT.require(Algorithm.HMAC256(jwtSecret)).build().verify(request.authToken)
-        val userId = decoded.getClaim("userId").asString() ?: throw AppException(401, "Token tidak valid")
+        val userId = decoded.getClaim("userId").asString()
+            ?: throw AppException(401, "Token tidak valid")
         refreshTokenRepository.delete(request.authToken)
         refreshTokenRepository.deleteByUserId(userId)
         call.respond(DataResponse("success", "Berhasil logout", null))
